@@ -1,0 +1,51 @@
+# cnfree 的姊妹源: Tushare Pro 官方 HTTP API (api.tushare.pro)
+# runtime: none —— 纯 httpx 直连, 不需要 tushare SDK, 不装任何依赖。
+# Key 由设置页输入 (先探后存, 落在 user_data/secrets.json 的 tushare_api_key)。
+name: tushare
+version: 1.1.0
+plugin_api_version: 1
+display_name: "Tushare Pro"
+author: XuXuebin
+runtime: none
+entry: provider:TushareProvider
+check: provider:availability
+datasets: [daily, adj_factor, financial]
+api_key_env: TUSHARE_TOKEN
+homepage: https://tushare.pro
+homepage_label: "Tushare Pro 官网"
+key_manage_url: "https://tushare.pro/user/token"
+key_manage_label: "获取 / 管理 Token"
+description: |
+  ## Tushare Pro 数据源
+
+  直连官方 HTTP 接口 (`api.tushare.pro`), **不需要安装 tushare SDK**。
+
+  | 能力 | 上游接口 | 口径换算 |
+  | --- | --- | --- |
+  | 日K | `daily` | `vol` 已是手; `amount` 是**千元 → ×1000** 转元 |
+  | 除权因子 | `adj_factor` | 上游是**累积因子** → 转成宿主要求的**单事件比值** (相邻因子比值, 仅事件日出行) |
+  | 财务数据 | `income` / `balancesheet` / `cashflow` / `fina_indicator` | 映射为宿主 canonical 列 (revenue / total_assets / roe ...) |
+
+  **边界**: Tushare 的分钟接口 (`stk_mins`) 限频极严 (实测 1~2 次/天), 全市场不可用 → 本源不声明 minute;
+  五档盘口 Tushare 没有 → 不声明 depth5; 实时快照 `rt_k` 需单独开通权限。
+
+  ### 多 Token 轮询 (v1.1.0)
+
+  Tushare 的限频是**按 token 计**的, 多个 token 可以把每分钟配额线性摊平。
+  Key 输入框支持三种写法(效果相同):
+
+  ```
+  token1,token2,token3            ← 逗号分隔
+  token1
+  token2                          ← 换行分隔
+  ["token1","token2","token3"]    ← JSON 数组
+  ```
+
+  * 保存前**逐个实探**, 返回每个 token 的可用状态
+  * 调用时按填写顺序**轮询**(round-robin), 每次调用换一个 token → 每分钟配额 ×N
+  * 某个 token 触发限频/积分不足 → **自动切换下一个**重试同一接口
+  * 只有 1 个 token 也完全兼容(行为与旧版一致)
+
+  源码与文档: https://github.com/XuXuebin/tsp-plugin-tushare
+usage_notes:
+  - "源码 / 文档 / 问题反馈: https://github.com/XuXuebin/tsp-plugin-tushare"
